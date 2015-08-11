@@ -9,6 +9,7 @@ from django.db import models
 from django.db import transaction
 from django.template.loader import render_to_string
 from django.utils.translation import ugettext_lazy as _
+from django.utils.timezone import utc, is_naive
 
 try:
     from django.contrib.auth import get_user_model
@@ -216,8 +217,12 @@ class RegistrationProfile(models.Model):
 
         """
         expiration_date = datetime.timedelta(days=settings.ACCOUNT_ACTIVATION_DAYS)
-        return self.activation_key == self.ACTIVATED or \
-               (self.user.date_joined + expiration_date <= datetime_now())
+        is_active = self.activation_key == self.ACTIVATED
+        date_joined = self.user.date_joined
+        if is_naive(date_joined) and settings.USE_TZ:
+            date_joined = date_joined.replace(tzinfo=utc)
+        is_not_expired = date_joined + expiration_date <= datetime_now()
+        return is_active or is_not_expired
     activation_key_expired.boolean = True
 
     def send_activation_email(self, site):
